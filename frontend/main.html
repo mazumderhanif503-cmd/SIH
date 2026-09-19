@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NER Landslide Early Warning & Risk Monitoring System | SIH 2026</title>
+  
+  <!-- Leaflet GIS Map CSS (for GIS terrain toggle) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Custom Project Stylesheet -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ================= TOP HEADER ================= -->
+  <header class="top-header">
+    <div class="brand-section">
+      <div class="brand-logo-icon">
+        <!-- Mountain Peak / Landslide Crest SVG Icon -->
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m8 3 4 8 5-5 5 15H2L8 3z"/>
+        </svg>
+      </div>
+      <div class="brand-titles">
+        <h1>NER Landslide Early Warning</h1>
+        <p>AI-based early warning &amp; risk monitoring · MDoNER · Smart India Hackathon 2026</p>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <!-- Public / Authority View Toggle -->
+      <div class="view-toggle-group">
+        <button id="btnPublicView" class="view-toggle-btn active" title="Public Citizen Safety View">Public View</button>
+        <button id="btnAuthorityView" class="view-toggle-btn" title="Disaster Management Authority View">Authority View</button>
+      </div>
+
+      <!-- Live IST Clock -->
+      <div class="header-meta">
+        <div class="clock-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span id="liveClock">--:--:-- IST</span>
+        </div>
+      </div>
+
+      <!-- Audio Alert Toggle -->
+      <button id="btnToggleSound" class="btn-ghost-sm" title="Toggle Alarm Sound">🔊 Sound ON</button>
+    </div>
+  </header>
+
+  <!-- ================= NAVIGATION BAR ================= -->
+  <nav class="tab-navigation-bar">
+    <div class="nav-tabs">
+      <button class="tab-btn active" data-tab="overview">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+        Overview
+      </button>
+      <button class="tab-btn" data-tab="historical">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Historical Trends
+      </button>
+      <button class="tab-btn" data-tab="protocol">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Alert Protocol
+      </button>
+      <button class="tab-btn" data-tab="about">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        About
+      </button>
+    </div>
+
+    <div class="status-sync-strip">
+      <div class="sync-indicator">
+        <span id="syncStatusDot" class="pulse-dot"></span>
+        <span id="syncStatusLabel">Synced 2 min ago</span>
+      </div>
+      <!-- Simulation Triggers for Hackathon Demo -->
+      <button id="btnSimulateRain" class="btn-ghost-sm" style="color:#0f5132; background:#e8f5e9; border-color:#a3cfbb;">⛈️ Simulate Cloudburst</button>
+      <button id="btnSimulateOffline" class="btn-ghost-sm" style="color:#334155;">Simulate offline</button>
+      <button id="btnResetSim" class="btn-ghost-sm" style="display:none;">Reset</button>
+    </div>
+  </nav>
+
+  <!-- Simulation notification banner (active when simulating) -->
+  <div id="simNoticeBar" class="simulation-bar" style="display:none;">
+    <span>Notice Banner</span>
+  </div>
+
+  <!-- ================= TOP EMERGENCY ALERT STRIP ================= -->
+  <aside class="critical-alert-banner" role="alert">
+    <div class="alert-content">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span id="topAlertBannerText">4 active alerts — highest: Severe risk near Aizawl, Mizoram</span>
+    </div>
+    <div class="alert-actions">
+      <span class="alert-badge-pill">ESCALATED</span>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="dashboard-content">
+
+    <!-- ================= TAB 1: OVERVIEW ================= -->
+    <div id="tab-overview" class="tab-pane active">
+      <div class="overview-grid">
+
+        <!-- Left Main Column (Map + Analytics) -->
+        <div class="main-left-column">
+
+          <!-- Live Weather Banner -->
+          <section class="live-weather-card">
+            <div class="weather-info-group">
+              <div class="weather-icon-box">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+                </svg>
+              </div>
+              <div>
+                <div class="weather-title">Live weather — <span id="weatherLocationName">Aizawl, Mizoram</span></div>
+                <div class="weather-subtitle" id="weatherConditionText">Heavy Monsoonal Rain, High Saturated Airflow</div>
+              </div>
+            </div>
+            <div class="weather-badge-group">
+              <div class="weather-stat-chip" id="weatherTempText">21°C</div>
+              <div class="weather-stat-chip" id="weatherHumidityText">💧 94%</div>
+              <div class="weather-stat-chip" id="weatherWindText">💨 18 km/h SW</div>
+            </div>
+          </section>
+
+          <!-- Regional Risk Map Section -->
+          <section class="card map-container-card">
+            <div class="card-header">
+              <div class="card-header-left">
+                <h2>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  Regional risk map
+                </h2>
+                <p>Tap a location to load its detail below</p>
+              </div>
+              <!-- Dual View Toggle: Radar vs Real GIS -->
+              <div class="map-controls-group">
+                <button id="btnRadarMap" class="map-toggle-btn active">Radar View</button>
+                <button id="btnGisMap" class="map-toggle-btn">GIS Satellite View</button>
+              </div>
+            </div>
+
+            <div class="card-body" style="padding: 14px;">
+              <!-- 1. Schematic Radar Map (Your Original Style) -->
+              <div id="radarMapWrapper" class="radar-map-wrapper">
+                <div class="radar-rings">
+                  <div class="radar-ring r1"></div>
+                  <div class="radar-ring r2"></div>
+                  <div class="radar-ring r3"></div>
+                </div>
+                <!-- Dynamic Location Pins -->
+                <div id="radarPinsContainer"></div>
+              </div>
+
+              <!-- 2. Real Leaflet GIS Map (Optional Terrain View) -->
+              <div id="leafletMapContainer"></div>
+
+              <!-- Map Legend -->
+              <div class="map-legend-strip">
+                <div class="legend-item">
+                  <span class="legend-color-dot" style="background: var(--risk-low);"></span> Low
+                </div>
+                <div class="legend-item">
+                  <span class="legend-color-dot" style="background: var(--risk-moderate);"></span> Moderate
+                </div>
+                <div class="legend-item">
+                  <span class="legend-color-dot" style="background: var(--risk-high);"></span> High
+                </div>
+                <div class="legend-item">
+                  <span class="legend-color-dot" style="background: var(--risk-severe);"></span> Severe
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Bottom Row: Speedometer Risk Gauge & 7-Day Rainfall Trend -->
+          <div class="bottom-analytics-row">
+
+            <!-- Risk Gauge -->
+            <section class="card">
+              <div class="card-header">
+                <div class="card-header-left">
+                  <h3 id="gaugeLocationTitle">Risk — Aizawl</h3>
+                </div>
+              </div>
+              <div class="card-body gauge-wrapper">
+                <div class="gauge-svg-container">
+                  <svg class="gauge-svg" viewBox="0 0 260 140">
+                    <defs>
+                      <linearGradient id="gaugeGradient" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stop-color="#10b981" />
+                        <stop offset="35%" stop-color="#d97706" />
+                        <stop offset="68%" stop-color="#ea580c" />
+                        <stop offset="100%" stop-color="#dc2626" />
+                      </linearGradient>
+                    </defs>
+
+                    <!-- Background Arc -->
+                    <path d="M 25 125 A 105 105 0 0 1 235 125" fill="none" stroke="#e2e8f0" stroke-width="18" stroke-linecap="round" />
+                    <!-- Colored Spectrum Arc -->
+                    <path d="M 25 125 A 105 105 0 0 1 235 125" fill="none" stroke="url(#gaugeGradient)" stroke-width="16" stroke-linecap="round" />
+
+                    <!-- Needle with Animated Transformation -->
+                    <g id="gaugeNeedlePath" class="gauge-needle">
+                      <polygon points="130,125 127,34 133,34" fill="#0f2a1d" />
+                      <circle cx="130" cy="125" r="8" fill="#0f2a1d" />
+                      <circle cx="130" cy="125" r="3.5" fill="#ffffff" />
+                    </g>
+                  </svg>
+                </div>
+
+                <div class="gauge-data-footer">
+                  <div id="gaugeScoreHuge" class="gauge-score-huge severe">84</div>
+                  <div id="gaugeLevelLabel" class="gauge-level-label severe">Severe</div>
+                </div>
+
+                <div class="gauge-submetrics">
+                  <div class="submetric-item" title="Soil Volumetric Water Saturation">
+                    <span>💧 Soil</span> <strong id="soilMetricText">88%</strong>
+                  </div>
+                  <div class="submetric-item" title="AI/ML Confidence Level">
+                    <span>📡 Prediction</span> <strong id="aiMetricText">81%</strong>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- 7-Day Rainfall Trend -->
+            <section class="card">
+              <div class="card-header">
+                <div class="card-header-left">
+                  <h3>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/><path d="M8 14v4"/><path d="M12 16v4"/><path d="M16 14v4"/></svg>
+                    Rainfall — last 7 days
+                  </h3>
+                  <p id="chartLocationSubtitle">Aizawl, Mizoram · mm accumulated per day</p>
+                </div>
+              </div>
+              <div class="card-body" style="padding-top: 8px;">
+                <div class="chart-container">
+                  <svg id="rainfall7DaySvg" class="svg-chart"></svg>
+                </div>
+                <div class="chart-legend-row">
+                  <span>Monsoon Cumulative Tracking</span>
+                  <span style="color:#dc2626; font-weight:600;">Threshold: 22 mm/day</span>
+                </div>
+              </div>
+            </section>
+
+          </div>
+
+        </div>
+
+        <!-- Right Side Column (Active Alerts Feed & Support) -->
+        <div class="main-right-column">
+
+          <!-- Active Alerts Card -->
+          <section class="card">
+            <div class="card-header">
+              <div class="card-header-left">
+                <h3>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                  Active alerts
+                </h3>
+                <p>Auto-generated from live sensor &amp; prediction feed</p>
+              </div>
+            </div>
+            <div class="card-body" style="padding: 14px;">
+              <div id="activeAlertsList" class="alerts-list">
+                <!-- Injected dynamically by app.js -->
+              </div>
+
+              <!-- Authority Quick Dispatch Panel (Only in Authority View) -->
+              <div id="authorityDispatchBox" class="authority-box">
+                <h4>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  Authority Action Center
+                </h4>
+                <p style="font-size:0.75rem; color:#14532d;">Direct broadcast triggers for State Disaster Management (SDMA) &amp; NDRF 1st Battalion.</p>
+                <button id="btnTriggerNDRF" class="quick-dispatch-btn">🚨 Dispatch Rapid Response Unit</button>
+                <button id="btnExportReport" class="quick-dispatch-btn" style="background:#0f2a1d; margin-top:8px;">📄 Export Situation Report (SITREP)</button>
+              </div>
+
+              <!-- Public Citizen Advisory Box -->
+              <div id="publicAdvisoryBox" style="margin-top: 14px; padding: 12px; background: #f8faf8; border: 1px solid var(--border-card); border-radius: var(--radius-sm);">
+                <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">
+                  🛡️ Citizen Helpline
+                </div>
+                <div style="font-size: 0.74rem; color: var(--text-muted); line-height: 1.4;">
+                  If you reside near steep slopes or observe ground fissures, call Toll-Free Disaster Helpline <strong>1070</strong> or National Emergency <strong>112</strong>.
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ================= TAB 2: HISTORICAL TRENDS ================= -->
+    <div id="tab-historical" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <h2>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+              Historical Geotechnical &amp; Precipitation Trends
+            </h2>
+            <p>Analyze multi-week moisture buildup and historical slope stability incidents</p>
+          </div>
+
+          <div class="historical-controls-bar" style="margin-bottom:0;">
+            <label for="historyLocationSelect" style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted);">Location:</label>
+            <select id="historyLocationSelect" class="location-select-custom">
+              <!-- Options populated by app.js -->
+            </select>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <h3 id="historicalChartTitle" style="font-size: 0.95rem; font-weight: 700; margin-bottom: 4px;">30-Day Cumulative Rainfall Trend</h3>
+          <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px;">Longer-range view used by geological engineers to spot slow-building saturation and groundwater pressure risks.</p>
+
+          <div class="bar-chart-container">
+            <svg id="rainfall30DaySvg" style="width: 100%; height: 100%;"></svg>
+          </div>
+
+          <!-- Incidents History Table -->
+          <div style="margin-top: 28px;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Past Incident Logs
+            </h3>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Logged landslide and road clearance events across the monitored North Eastern Region</p>
+
+            <div class="incidents-table-wrapper">
+              <table class="incidents-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Location</th>
+                    <th>Severity</th>
+                    <th>Outcome / Ground Impact</th>
+                  </tr>
+                </thead>
+                <tbody id="incidentsTableBody">
+                  <!-- Injected dynamically by app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= TAB 3: ALERT PROTOCOL ================= -->
+    <div id="tab-protocol" class="tab-pane">
+      <div class="protocol-container">
+
+        <div class="active-protocol-highlight-banner" id="activeProtocolText">
+          Currently active: Level 3 — Emergency for Aizawl, Mizoram
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-left">
+              <h2>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Multi-Level Alert &amp; Escalation Protocol
+              </h2>
+              <p>Automated multi-tier alert escalation driven by predictive AI landslide models and geotechnical thresholds</p>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="protocol-cards-list">
+
+              <!-- Level 1 -->
+              <div class="protocol-step-card">
+                <div class="protocol-icon-circle level1">①</div>
+                <div class="protocol-info-box">
+                  <h3>Level 1 — Advisory</h3>
+                  <div class="score-range">Risk Score: 26 – 50 | Low to Moderate Upward Trend</div>
+                  <p>Risk trending upward. Geotechnical anomalies logged for continuous sensor tracking — no general public evacuation alert issued yet.</p>
+                  <ul class="protocol-checklist">
+                    <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Flagged on continuous monitoring dashboard</li>
+                    <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Sensor polling interval reduced from 15m to 3m</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Level 2 -->
+              <div class="protocol-step-card">
+                <div class="protocol-icon-circle level2">②</div>
+                <div class="protocol-info-box">
+                  <h3>Level 2 — Warning</h3>
+                  <div class="score-range">Risk Score: 51 – 75 | Sustained Critical Rain &amp; Soil Saturation</div>
+                  <p>Active risk confirmed by machine learning classifier. Local municipal authorities and traffic police alerted to begin preparedness measures.</p>
+                  <ul class="protocol-checklist">
+                    <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> SMS alert dispatched to registered residents in threat zones</li>
+                    <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Push notifications broadcasted to smartphone disaster apps</li>
+                    <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> District Disaster Management Authority (DDMA) incident room mobilized</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Level 3 -->
+              <div class="protocol-step-card">
+                <div class="protocol-icon-circle level3">③</div>
+                <div class="protocol-info-box">
+                  <h3>Level 3 — Emergency</h3>
+                  <div class="score-range">Risk Score: 76 – 100 | Immediate Imminent Danger</div>
+                  <p>Catastrophic slope instability probability exceeds critical thresholds. Full multi-agency evacuation and life-safety protocol triggered.</p>
+                  <ul class="protocol-checklist">
+                    <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> NDRF / SDRF rapid deployment units activated with heavy earthmovers</li>
+                    <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Traffic diversion &amp; National Highway blockades established</li>
+                    <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Community sirens activated in designated red-zone clusters</li>
+                  </ul>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ================= TAB 4: ABOUT & TEAM ================= -->
+    <div id="tab-about" class="tab-pane">
+      <section class="about-hero-card">
+        <span class="about-badge">Smart India Hackathon 2026</span>
+        <h2>AI-Based Early Warning &amp; Landslide Risk Monitoring System in NER</h2>
+        <p>
+          <strong>Ministry:</strong> Ministry of Development of North Eastern Region (MDoNER), Government of India<br/>
+          Built under the theme <em>"Stronger North East, Brighter India"</em> — seamlessly combining real-time rainfall data, terrain telemetry, satellite radar, and predictive AI models to provide resilient communities with early, reliable alerts ahead of landslide hazards.
+        </p>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <h2>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Team Work Distribution
+            </h2>
+            <p>Ideas | People | Solutions | A Safer North Eastern Region</p>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="team-grid-cards">
+
+            <div class="team-card">
+              <span class="team-card-badge">01 · AI/ML</span>
+              <div class="team-member-name">Gulam Mustafa Raza</div>
+              <div class="team-member-role">AI/ML + Prediction</div>
+            </div>
+
+            <div class="team-card">
+              <span class="team-card-badge">02 · DATA</span>
+              <div class="team-member-name">Anjali Rawat</div>
+              <div class="team-member-role">Data Collection + Preprocessing</div>
+            </div>
+
+            <div class="team-card">
+              <span class="team-card-badge">03 · GEOSPATIAL</span>
+              <div class="team-member-name">Gourav</div>
+              <div class="team-member-role">GIS + Maps</div>
+            </div>
+
+            <div class="team-card highlight">
+              <span class="team-card-badge">04 · UI/UX LEAD</span>
+              <div class="team-member-name">Hanif Ahmed Mazumder</div>
+              <div class="team-member-role">Frontend / Dashboard Lead</div>
+            </div>
+
+            <div class="team-card">
+              <span class="team-card-badge">05 · BACKEND</span>
+              <div class="team-member-name">Vikalp Thakur</div>
+              <div class="team-member-role">Backend + Database</div>
+            </div>
+
+            <div class="team-card">
+              <span class="team-card-badge">06 · OUTREACH</span>
+              <div class="team-member-name">Vanshika</div>
+              <div class="team-member-role">PPT + Presentation / Demo</div>
+            </div>
+
+          </div>
+
+          <!-- North East Motto Banner -->
+          <div style="margin-top: 24px; padding: 18px; background: #f0fdf4; border: 1px dashed #86efac; border-radius: var(--radius-md); text-align: center;">
+            <div style="font-weight: 800; font-size: 0.95rem; color: #166534; letter-spacing: 0.05em; text-transform: uppercase;">
+              North East: Our Strength · Our Opportunity · Our Responsibility
+            </div>
+            <div style="font-size: 0.78rem; color: #15803d; margin-top: 4px;">
+              Reduce Risk · Build Resilient Communities · Leverage Technology · Create Lasting Impact
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="dashboard-footer">
+    <div class="footer-inner">
+      <div>Smart India Hackathon 2026 · AI-Based Early Warning and Landslide Risk Monitoring System in NER</div>
+      <div>Frontend prototype — live backend &amp; AI/ML pipeline integration ready · Ministry of Development of North Eastern Region (MDoNER)</div>
+    </div>
+  </footer>
+
+  <!-- Leaflet GIS Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Main Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
